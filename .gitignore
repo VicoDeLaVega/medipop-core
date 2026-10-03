@@ -1,0 +1,21 @@
+.dart_tool/
+build/
+pubspec.lock
+pubspec_overrides.yaml
+.flutter-plugins
+.flutter-plugins-dependencies
+.idea/
+.vscode/
+*.iml
+.DS_Store
+*.gguf
+*.sqlite*
+.env
+.env.*
+# Example app native folders are generated with `flutter create .` in example/
+example/ios/
+example/android/
+example/macos/
+example/linux/
+example/windows/
+example/web/
