@@ -36,3 +36,18 @@
 ## État
 
 1.1 : interfaces livrées et testées avec de faux adaptateurs dans `packages/medipop_core/test/core_test.dart`; la suite de contrat réutilisable par les adaptateurs reste à extraire. 1.3 et 2.1 sont vérifiés par `flutter test`, `verify_core.dart` et `dart analyze`, pas encore sur appareil.
+
+## 7. Configuration par l'organisme (ajout du 2026-10-03)
+
+- [x] 7.1 Packages multilingues: `locales`, sélecteur de langue de dictée, `{{LANGUAGE}}`, libellés par langue.
+- [x] 7.2 `branding` (nom, couleur, logo HTTPS) appliqué après connexion.
+- [x] 7.3 Carte d'installation du modèle sur l'accueil; téléchargement HTTPS avec redirections, SHA-256 vérifié une fois par session.
+- [x] 7.4 medipop-connectors: `organization_packages` + RPC `publish_package` (admin uniquement), page dashboard « Configuration ». Nouvelle version appliquée au prochain lancement.
+- [ ] 7.5 Téléchargement automatique du modèle en Wi-Fi, en arrière-plan avec reprise.
+- [ ] 7.6 Traduction de l'interface du core (FR/EN).
+
+## 8. App générique publiée (proposition du 2026-10-03)
+
+- [ ] 8.1 Une app « Medipop » unique (TestFlight puis stores) contenant tous les adaptateurs; premier lancement: mode autonome ou « Se connecter à mon organisme » par QR code / lien.
+- [ ] 8.2 QR code d'organisation: paramètres publics uniquement (URL du serveur, clé publishable, type d'identité); généré depuis le dashboard.
+- [ ] 8.3 Les dépôts d'organisme ne contiennent plus que la configuration, sauf besoin d'une app à leur marque sur les stores.
