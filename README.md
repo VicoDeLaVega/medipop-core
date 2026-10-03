@@ -42,7 +42,13 @@ flutter create --platforms=ios,android .
 flutter run
 ```
 
-On iOS, add `NSMicrophoneUsageDescription` and `NSSpeechRecognitionUsageDescription` to `ios/Runner/Info.plist`.
+On iOS, every app shell needs:
+
+- `NSMicrophoneUsageDescription` and `NSSpeechRecognitionUsageDescription` in `ios/Runner/Info.plist`;
+- in the `ios/Podfile` `post_install` block, `PERMISSION_MICROPHONE=1` and `PERMISSION_SPEECH_RECOGNIZER=1` added to `GCC_PREPROCESSOR_DEFINITIONS` — otherwise `permission_handler` reports the microphone as permanently denied without prompting;
+- with Xcode 27 and Flutter 3.41, `IPHONEOS_DEPLOYMENT_TARGET = 15.0` for all pods and `EXCLUDED_ARCHS[sdk=iphonesimulator*] = i386 x86_64`.
+
+See the `medipop-aptitud` app shell for a working `Podfile`.
 
 ## Verify
 
