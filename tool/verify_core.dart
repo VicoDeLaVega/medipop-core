@@ -55,6 +55,7 @@ Future<void> main() async {
       'Language placeholder filled');
   check(package.fields.first.labelIn('fr') == 'Patient' &&
           package.fields[2].labelIn('fr') == 'Médicaments' &&
+          package.fields[2].labelIn('es') == 'Medicamentos' &&
           package.fields[2].labelIn('de') == 'Medications',
       'Localized labels with fallback');
   for (final bad in [
