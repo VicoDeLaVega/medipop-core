@@ -18,11 +18,20 @@ class ModelStore {
     if (expectedHash != null && hash != expectedHash.toLowerCase()) return null;
     final file = File(p.join(directory.path, '$hash.gguf'));
     if (!await file.exists()) return null;
-    if ((await sha256.bind(file.openRead()).first).toString() != hash) {
-      return null;
+    // Hashing ~1 GB takes seconds on a tablet: verify once per process unless
+    // the file changed since.
+    final stat = await file.stat();
+    final stamp = '${stat.size}:${stat.modified.microsecondsSinceEpoch}';
+    if (_verified[file.path] != stamp) {
+      if ((await sha256.bind(file.openRead()).first).toString() != hash) {
+        return null;
+      }
+      _verified[file.path] = stamp;
     }
     return file.path;
   }
+
+  static final Map<String, String> _verified = {};
 
   Future<String> importFile(File source, String expectedHash) =>
       install(source.openRead(), expectedHash);
@@ -33,15 +42,30 @@ class ModelStore {
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 30);
     try {
-      final request = await client.getUrl(uri);
-      request.followRedirects = false;
-      final response = await request.close();
-      if (response.statusCode != 200) {
-        throw HttpException(
-            'Model server returned ${response.statusCode}. Use a direct HTTPS download URL.');
+      // Follow redirects (model hubs serve files from a CDN) but only to HTTPS.
+      // The expected SHA-256 still guarantees the content.
+      var target = uri;
+      for (var hop = 0;; hop++) {
+        final request = await client.getUrl(target);
+        request.followRedirects = false;
+        final response = await request.close();
+        if (response.isRedirect) {
+          await response.drain<void>();
+          final location = response.headers.value(HttpHeaders.locationHeader);
+          final next = location == null ? null : target.resolve(location);
+          if (hop >= 5 || next == null || next.scheme != 'https') {
+            throw const HttpException('Unsafe or too many model redirects.');
+          }
+          target = next;
+          continue;
+        }
+        if (response.statusCode != 200) {
+          throw HttpException(
+              'Model server returned ${response.statusCode}. Use a direct HTTPS download URL.');
+        }
+        return await install(
+            response.timeout(const Duration(seconds: 60)), expectedHash);
       }
-      return await install(
-          response.timeout(const Duration(seconds: 60)), expectedHash);
     } finally {
       client.close(force: true);
     }
