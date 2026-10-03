@@ -29,6 +29,16 @@ class HomeScreen extends ConsumerWidget {
                 icon: const Icon(Icons.logout)),
         ]),
         body: ListView(padding: const EdgeInsets.all(24), children: [
+          if (workspace.package.branding['logoUrl'] is String)
+            Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Image.network(
+                        workspace.package.branding['logoUrl'] as String,
+                        height: 64,
+                        // Offline or unreachable logo: keep the screen usable.
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink()))),
           Text(workspace.package.title,
               style: Theme.of(context).textTheme.headlineMedium),
           Text(signIn

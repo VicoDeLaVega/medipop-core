@@ -16,6 +16,10 @@ class ClinicalPackage {
 
   String get locale => locales.first;
   Map<String, dynamic>? get model => json['model'] as Map<String, dynamic>?;
+
+  /// Organization identity shown after sign-in: name, primaryColor, logoUrl.
+  Map<String, dynamic> get branding =>
+      json['branding'] as Map<String, dynamic>? ?? const {};
   factory ClinicalPackage.parse(String source) {
     final j = jsonDecode(source);
     if (j is! Map<String, dynamic> || j['formatVersion'] != 1) {
@@ -39,6 +43,22 @@ class ClinicalPackage {
                 l is! String || !RegExp(r'^[a-z]{2}(_[A-Z]{2})?$').hasMatch(l)) ||
             locales.toSet().length != locales.length)) {
       throw const FormatException('Locales must be unique codes like fr_FR.');
+    }
+    final branding = j['branding'];
+    if (branding != null &&
+        (branding is! Map<String, dynamic> ||
+            (branding['name'] != null &&
+                (branding['name'] is! String ||
+                    (branding['name'] as String).isEmpty)) ||
+            (branding['primaryColor'] != null &&
+                (branding['primaryColor'] is! String ||
+                    !RegExp(r'^#[0-9a-fA-F]{6}$')
+                        .hasMatch(branding['primaryColor']))) ||
+            (branding['logoUrl'] != null &&
+                (branding['logoUrl'] is! String ||
+                    Uri.tryParse(branding['logoUrl'])?.scheme != 'https')))) {
+      throw const FormatException(
+          'Branding accepts name, primaryColor (#RRGGBB) and an HTTPS logoUrl.');
     }
     final fields = ClinicalField.parseList(j['fields'], 0);
     if (j['model'] != null) {

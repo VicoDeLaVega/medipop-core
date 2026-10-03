@@ -66,6 +66,26 @@ Future<void> main() async {
       ClinicalPackage.parse(jsonEncode({...jsonDecode(source), ...bad}));
     });
   }
+  check(
+      ClinicalPackage.parse(jsonEncode({
+        ...jsonDecode(source),
+        'branding': {
+          'name': 'APTITUD',
+          'primaryColor': '#1E40AF',
+          'logoUrl': 'https://example.org/logo.png'
+        }
+      })).branding['name'] ==
+          'APTITUD',
+      'Branding accepted');
+  for (final bad in [
+    {'primaryColor': 'blue'},
+    {'logoUrl': 'http://example.org/logo.png'},
+    {'name': ''},
+  ]) {
+    await mustFail(() async {
+      ClinicalPackage.parse(jsonEncode({...jsonDecode(source), 'branding': bad}));
+    });
+  }
   await mustFail(() async {
     final j = jsonDecode(source) as Map<String, dynamic>;
     j['fields'][0]['label'] = {'english': 'Patient'};

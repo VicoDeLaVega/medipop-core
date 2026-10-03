@@ -33,18 +33,21 @@ class _MedipopAppState extends ConsumerState<MedipopApp> {
     final controller = ref.watch(workspaceProvider);
     final workspace = controller.workspace;
     final identity = ref.watch(adaptersProvider).identity;
+    final branding = workspace?.package.branding ?? const {};
+    final seed = parseHexColor(branding['primaryColor'] as String?);
+    final title = branding['name'] as String? ?? widget.title;
     // Replacing the navigator discards all patient-bearing routes on account changes/logout.
     return MaterialApp(
       key: ValueKey(
           '${workspace?.key}/${workspace?.package.id}/${workspace?.package.version}'),
-      title: widget.title,
+      title: title,
       debugShowCheckedModeBanner: false,
-      theme: buildLightTheme(),
-      darkTheme: buildDarkTheme(),
+      theme: seed == null ? buildLightTheme() : buildLightTheme(seed),
+      darkTheme: seed == null ? buildDarkTheme() : buildDarkTheme(seed),
       home: controller.loading
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : workspace != null
-              ? HomeScreen(title: widget.title)
+              ? HomeScreen(title: title)
               : identity.requiresSignIn
                   ? Builder(
                       builder: (context) =>

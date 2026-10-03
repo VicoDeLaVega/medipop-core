@@ -27,6 +27,10 @@ Un package est un seul fichier JSON déclaratif:
 
 `label` accepte une chaîne ou un objet par langue, par exemple `{"fr": "Posologie", "en": "Posology"}`. Les libellés suivent la langue de l'appareil, avec repli sur l'anglais.
 
+## Identité visuelle
+
+`branding` est facultatif : `name` (nom affiché), `primaryColor` (`#RRGGBB`, couleur principale de l'interface) et `logoUrl` (HTTPS). L'app les applique après la connexion ; sans réseau, le logo est simplement masqué.
+
 ## Prompt
 
 Les deux placeholders du prompt sont obligatoires. `{{LANGUAGE}}` est facultatif et reçoit la langue de dictée choisie. `{{SCHEMA}}` reçoit les définitions de champs et `{{TRANSCRIPT}}` la dictée. La sortie reste un brouillon à relire. Un JSON de modèle malformé ouvre un formulaire vide avec avertissement, sans inventer de données.
