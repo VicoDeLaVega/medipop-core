@@ -11,6 +11,9 @@ class ClinicalForm extends StatefulWidget {
 
 class _ClinicalFormState extends State<ClinicalForm> {
   final Map<Object, Key> _itemKeys = Map.identity();
+  // Field labels follow the device language; dictation language is chosen separately.
+  String get _language =>
+      View.of(context).platformDispatcher.locale.languageCode;
   Widget field(ClinicalField f, Map<String, dynamic> values, String path) {
     final value = values[f.id];
     if (f.type == 'group') {
@@ -21,7 +24,7 @@ class _ClinicalFormState extends State<ClinicalForm> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(f.label,
+                    Text(f.labelIn(_language),
                         style: Theme.of(context).textTheme.titleMedium),
                     for (final child in f.children)
                       field(child, group, '$path.${child.id}'),
@@ -32,7 +35,7 @@ class _ClinicalFormState extends State<ClinicalForm> {
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Expanded(
-              child: Text(f.label,
+              child: Text(f.labelIn(_language),
                   style: Theme.of(context).textTheme.titleMedium)),
           TextButton.icon(
               onPressed: () => setState(() => items.add({
@@ -49,7 +52,7 @@ class _ClinicalFormState extends State<ClinicalForm> {
                   padding: const EdgeInsets.all(12),
                   child: Column(children: [
                     Row(children: [
-                      Expanded(child: Text('${f.label} ${i + 1}')),
+                      Expanded(child: Text('${f.labelIn(_language)} ${i + 1}')),
                       IconButton(
                           onPressed: () => setState(() => items.removeAt(i)),
                           icon: const Icon(Icons.delete_outline))
@@ -60,7 +63,7 @@ class _ClinicalFormState extends State<ClinicalForm> {
                   ]))),
       ]);
     }
-    final label = '${f.label}${f.requiredValue ? ' *' : ''}';
+    final label = '${f.labelIn(_language)}${f.requiredValue ? ' *' : ''}';
     if (f.type == 'boolean' || f.type == 'choice') {
       final options = f.type == 'boolean' ? <dynamic>[true, false] : f.options;
       return Padding(

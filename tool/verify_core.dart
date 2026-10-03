@@ -48,6 +48,29 @@ Future<void> main() async {
     });
   }
   check(package.normalize({})['medications'] is List, 'Empty lists');
+  check(package.locales.first == 'en_US' && package.locales.contains('fr_FR'),
+      'Declared dictation languages');
+  check(package.prompt('x', locale: 'fr_FR').contains('fr_FR') &&
+          !package.prompt('x').contains('{{LANGUAGE}}'),
+      'Language placeholder filled');
+  check(package.fields.first.labelIn('fr') == 'Patient' &&
+          package.fields[2].labelIn('fr') == 'Médicaments' &&
+          package.fields[2].labelIn('de') == 'Medications',
+      'Localized labels with fallback');
+  for (final bad in [
+    {'locales': []},
+    {'locales': ['french']},
+    {'locales': ['fr_FR', 'fr_FR']},
+  ]) {
+    await mustFail(() async {
+      ClinicalPackage.parse(jsonEncode({...jsonDecode(source), ...bad}));
+    });
+  }
+  await mustFail(() async {
+    final j = jsonDecode(source) as Map<String, dynamic>;
+    j['fields'][0]['label'] = {'english': 'Patient'};
+    ClinicalPackage.parse(jsonEncode(j));
+  });
   check(
       package
           .validate(package.normalize({
@@ -94,7 +117,8 @@ Future<void> main() async {
   check((await a.pending()).isEmpty,
       'Successful acknowledgement removes from pending');
   check(
-      (await a.rows()).single['schema_version'] == '1.0.0', 'Schema preserved');
+      (await a.rows()).single['schema_version'] == package.version,
+      'Schema preserved');
   await a.close();
   await b.close();
   final temp = await Directory.systemTemp.createTemp('medipop-model-test-');

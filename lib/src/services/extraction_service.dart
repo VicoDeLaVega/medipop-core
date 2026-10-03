@@ -51,8 +51,8 @@ class ExtractionService {
   ExtractionService(this.llm, this.package);
   final LlmService llm;
   final ClinicalPackage package;
-  Future<ClinicalDraft> extract(String transcript) async {
-    final raw = await llm.complete(package.prompt(transcript));
+  Future<ClinicalDraft> extract(String transcript, {String? locale}) async {
+    final raw = await llm.complete(package.prompt(transcript, locale: locale));
     try {
       final decoded =
           jsonDecode(extractJsonObject(raw)) as Map<String, dynamic>;

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../runtime/providers.dart';
 import '../../services/extraction_service.dart';
+import '../../services/llm_service.dart';
 import 'history_screen.dart';
 import 'model_screen.dart';
 import 'record_screen.dart';
@@ -41,7 +42,9 @@ class HomeScreen extends ConsumerWidget {
           if (controller.offline)
             const Text(
                 'Offline workspace. Reconnect and sign in again if sync requires it.'),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+          _ModelBanner(model: workspace.package.model),
+          const SizedBox(height: 8),
           FilledButton.icon(
               onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const RecordScreen())),
@@ -96,4 +99,52 @@ class HomeScreen extends ConsumerWidget {
               'Review all extracted fields before saving. Speech recognition depends on the device and may require Internet.'),
         ]));
   }
+}
+
+/// Offers the organization's configured model when it is not installed yet,
+/// so first launch leads straight to the download.
+class _ModelBanner extends StatefulWidget {
+  const _ModelBanner({required this.model});
+  final Map<String, dynamic>? model;
+  @override
+  State<_ModelBanner> createState() => _ModelBannerState();
+}
+
+class _ModelBannerState extends State<_ModelBanner> {
+  late Future<bool> installed = _check();
+
+  Future<bool> _check() async {
+    final hash = widget.model?['sha256'] as String?;
+    if (hash == null) return true; // No model imposed by the configuration.
+    final store = await LlmService.modelStore();
+    return await store.activePath(expectedHash: hash) != null;
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<bool>(
+      future: installed,
+      builder: (context, snapshot) {
+        if (snapshot.data != false) return const SizedBox.shrink();
+        final name = widget.model?['name'] as String? ?? 'AI model';
+        return Card(
+            child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('AI model required: $name',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      const Text(
+                          'Download it once over Wi-Fi to fill forms automatically. Manual entry works meanwhile.'),
+                      const SizedBox(height: 8),
+                      FilledButton.tonal(
+                          onPressed: () async {
+                            await Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => const ModelScreen()));
+                            if (mounted) setState(() => installed = _check());
+                          },
+                          child: const Text('Install model')),
+                    ])));
+      });
 }

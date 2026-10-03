@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/extraction_service.dart';
 import '../../services/stt_service.dart';
@@ -22,6 +23,26 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
   bool _listening = false;
   bool _processing = false;
   StreamSubscription<String>? _sub;
+  late final _package = ref.read(workspaceProvider).workspace!.package;
+  late String _locale = _package.locale;
+  String get _localeKey => 'medipop_dictation_locale_${_package.id}';
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      final saved = prefs.getString(_localeKey);
+      if (mounted && saved != null && _package.locales.contains(saved)) {
+        setState(() => _locale = saved);
+      }
+    });
+  }
+
+  Future<void> _chooseLocale(String locale) async {
+    setState(() => _locale = locale);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_localeKey, locale);
+  }
 
   void _log(String message) {
     debugPrint('[RecordScreen] $message');
@@ -44,8 +65,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     }, onError: (_) {
       if (mounted) setState(() => _listening = false);
     });
-    final ok = await stt.start(
-        localeId: ref.read(workspaceProvider).workspace!.package.locale);
+    final ok = await stt.start(localeId: _locale);
     if (!mounted) return;
     _log('stt.start() returned $ok');
     if (!ok && mounted) {
@@ -74,7 +94,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     setState(() => _processing = true);
     try {
       final svc = ref.read(extractionServiceProvider);
-      final draft = await svc.extract(_transcript);
+      final draft = await svc.extract(_transcript, locale: _locale);
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => ReviewScreen(draft: draft)),
@@ -98,6 +118,19 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
+            if (_package.locales.length > 1) ...[
+              SegmentedButton<String>(
+                segments: [
+                  for (final l in _package.locales)
+                    ButtonSegment(value: l, label: Text(_languageName(l))),
+                ],
+                selected: {_locale},
+                onSelectionChanged: _listening || _processing
+                    ? null
+                    : (s) => _chooseLocale(s.single),
+              ),
+              const SizedBox(height: 16),
+            ],
             Expanded(
               child: SingleChildScrollView(
                 child: Container(
@@ -146,4 +179,19 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
       ),
     );
   }
+}
+
+const _knownLanguages = {
+  'en': 'English',
+  'fr': 'Français',
+  'es': 'Español',
+  'pt': 'Português',
+  'de': 'Deutsch',
+  'it': 'Italiano',
+};
+
+String _languageName(String locale) {
+  final parts = locale.split('_');
+  final name = _knownLanguages[parts.first] ?? parts.first.toUpperCase();
+  return parts.length > 1 ? '$name (${parts[1]})' : name;
 }

@@ -7,7 +7,14 @@ class ClinicalPackage {
   String get id => json['id'] as String;
   String get version => json['version'] as String;
   String get title => json['title'] as String;
-  String get locale => json['locale'] as String? ?? 'en_US';
+  /// Dictation languages offered to the user, preferred first.
+  List<String> get locales {
+    final list = json['locales'];
+    if (list is List && list.isNotEmpty) return List<String>.from(list);
+    return [json['locale'] as String? ?? 'en_US'];
+  }
+
+  String get locale => locales.first;
   Map<String, dynamic>? get model => json['model'] as Map<String, dynamic>?;
   factory ClinicalPackage.parse(String source) {
     final j = jsonDecode(source);
@@ -23,6 +30,15 @@ class ClinicalPackage {
         !(j['prompt'] as String).contains('{{SCHEMA}}')) {
       throw const FormatException(
           'Prompt requires TRANSCRIPT and SCHEMA placeholders.');
+    }
+    final locales = j['locales'];
+    if (locales != null &&
+        (locales is! List ||
+            locales.isEmpty ||
+            locales.any((l) =>
+                l is! String || !RegExp(r'^[a-z]{2}(_[A-Z]{2})?$').hasMatch(l)) ||
+            locales.toSet().length != locales.length)) {
+      throw const FormatException('Locales must be unique codes like fr_FR.');
     }
     final fields = ClinicalField.parseList(j['fields'], 0);
     if (j['model'] != null) {
@@ -40,9 +56,11 @@ class ClinicalPackage {
     return ClinicalPackage._(j, fields);
   }
   String encode() => jsonEncode(json);
-  String prompt(String transcript) => (json['prompt'] as String)
-      .replaceAll('{{SCHEMA}}', jsonEncode(json['fields']))
-      .replaceAll('{{TRANSCRIPT}}', transcript);
+  String prompt(String transcript, {String? locale}) =>
+      (json['prompt'] as String)
+          .replaceAll('{{SCHEMA}}', jsonEncode(json['fields']))
+          .replaceAll('{{LANGUAGE}}', locale ?? this.locale)
+          .replaceAll('{{TRANSCRIPT}}', transcript);
   Map<String, dynamic> normalize(Map<String, dynamic> values) => {
         for (final field in fields) field.id: field.normalize(values[field.id]),
       };
@@ -53,9 +71,14 @@ class ClinicalPackage {
 }
 
 class ClinicalField {
-  ClinicalField(this.id, this.label, this.type, this.requiredValue,
+  ClinicalField(this.id, this.labels, this.type, this.requiredValue,
       this.children, this.options);
-  final String id, label, type;
+  final String id, type;
+
+  /// Label per language code ('fr', 'en'…); '' when the package gives one string.
+  final Map<String, String> labels;
+  String get label => labels['en'] ?? labels[''] ?? labels.values.first;
+  String labelIn(String language) => labels[language] ?? label;
   final bool requiredValue;
   final List<ClinicalField> children;
   final List<String> options;
@@ -69,8 +92,7 @@ class ClinicalField {
           f['id'] is! String ||
           !RegExp(r'^[a-zA-Z][a-zA-Z0-9_]*$').hasMatch(f['id']) ||
           !ids.add(f['id']) ||
-          f['label'] is! String ||
-          (f['label'] as String).isEmpty ||
+          _parseLabels(f['label']) == null ||
           !['text', 'number', 'boolean', 'choice', 'group', 'list']
               .contains(f['type']) ||
           (f['required'] != null && f['required'] is! bool)) {
@@ -86,7 +108,7 @@ class ClinicalField {
       }
       return ClinicalField(
           f['id'],
-          f['label'],
+          _parseLabels(f['label'])!,
           f['type'],
           f['required'] == true,
           ['group', 'list'].contains(f['type'])
@@ -94,6 +116,22 @@ class ClinicalField {
               : [],
           f['type'] == 'choice' ? List<String>.from(options) : []);
     }).toList();
+  }
+
+  static Map<String, String>? _parseLabels(dynamic raw) {
+    if (raw is String) return raw.isEmpty ? null : {'': raw};
+    if (raw is! Map || raw.isEmpty) return null;
+    final labels = <String, String>{};
+    for (final entry in raw.entries) {
+      if (entry.key is! String ||
+          !RegExp(r'^[a-z]{2}$').hasMatch(entry.key) ||
+          entry.value is! String ||
+          (entry.value as String).isEmpty) {
+        return null;
+      }
+      labels[entry.key as String] = entry.value as String;
+    }
+    return labels;
   }
 
   dynamic normalize(dynamic value) {
