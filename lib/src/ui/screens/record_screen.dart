@@ -8,6 +8,8 @@ import '../../services/extraction_service.dart';
 import '../../services/stt_service.dart';
 import '../../runtime/providers.dart';
 import '../widgets/mic_button.dart';
+import '../widgets/stt_console.dart';
+import '../widgets/vu_meter.dart';
 import 'review_screen.dart';
 
 class RecordScreen extends ConsumerStatefulWidget {
@@ -23,6 +25,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
   bool _listening = false;
   bool _processing = false;
   StreamSubscription<String>? _sub;
+  StreamSubscription<double>? _levelSub;
+  Timer? _decay;
+  double _level = 0;
+  DateTime? _lastSound;
   late final _package = ref.read(workspaceProvider).workspace!.package;
   late String _locale = _package.locale;
   String get _localeKey => 'medipop_dictation_locale_${_package.id}';
@@ -51,20 +57,56 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
   @override
   void dispose() {
     _sub?.cancel();
+    _stopLevel();
     unawaited(_stt.cancel());
     super.dispose();
   }
+
+  /// Follows the microphone level. Partial transcripts also count as sound,
+  /// so the indicator still reacts on platforms that report no level.
+  void _startLevel() {
+    _lastSound = null;
+    _levelSub?.cancel();
+    _levelSub = _stt.levelStream.listen((l) => _heard(l));
+    _decay?.cancel();
+    _decay = Timer.periodic(const Duration(milliseconds: 50), (_) {
+      if (mounted) setState(() => _level *= 0.8);
+    });
+  }
+
+  void _heard(double level) {
+    if (level > 0.15) _lastSound = DateTime.now();
+    if (mounted && level > _level) setState(() => _level = level);
+  }
+
+  void _stopLevel() {
+    _levelSub?.cancel();
+    _levelSub = null;
+    _decay?.cancel();
+    _decay = null;
+    _level = 0;
+  }
+
+  bool get _silent =>
+      _listening &&
+      (_lastSound == null ||
+          DateTime.now().difference(_lastSound!) > const Duration(seconds: 4));
 
   Future<void> _start() async {
     _log('Mic button tapped.');
     final stt = _stt;
     _sub?.cancel();
-    _sub = stt.transcriptStream.listen((text) {
-      _log('Transcript stream emitted ${text.length} characters.');
-      if (mounted) setState(() => _transcript = text);
-    }, onError: (_) {
-      if (mounted) setState(() => _listening = false);
-    });
+    _sub = stt.transcriptStream.listen(
+      (text) {
+        _log('Transcript stream emitted ${text.length} characters.');
+        if (mounted) setState(() => _transcript = text);
+        _heard(0.6);
+      },
+      onError: (_) {
+        _stopLevel();
+        if (mounted) setState(() => _listening = false);
+      },
+    );
     final ok = await stt.start(localeId: _locale);
     if (!mounted) return;
     _log('stt.start() returned $ok');
@@ -74,6 +116,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
       );
       return;
     }
+    _startLevel();
     setState(() => _listening = true);
   }
 
@@ -83,6 +126,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     final finalText = await stt.stop();
     _log('Final transcript length after stop: ${finalText.length}');
     if (!mounted) return;
+    _stopLevel();
     setState(() {
       _listening = false;
       _transcript = finalText.isNotEmpty ? finalText : _transcript;
@@ -96,14 +140,14 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
       final svc = ref.read(extractionServiceProvider);
       final draft = await svc.extract(_transcript, locale: _locale);
       if (!mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ReviewScreen(draft: draft)),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => ReviewScreen(draft: draft)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Extraction failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Extraction failed: $e')));
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -137,8 +181,9 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color:
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -151,12 +196,25 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            MicButton(
-              isListening: _listening,
-              onStart: _start,
-              onStop: _stop,
+            MicButton(isListening: _listening, onStart: _start, onStop: _stop),
+            const SizedBox(height: 16),
+            VuMeter(level: _level, active: _listening),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 24,
+              child: _listening
+                  ? Text(
+                      _silent
+                          ? 'No sound detected — check the microphone'
+                          : 'Listening…',
+                      style: TextStyle(
+                        color: _silent
+                            ? Theme.of(context).colorScheme.error
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    )
+                  : null,
             ),
-            const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: (_listening || _processing || _transcript.isEmpty)
                   ? null
@@ -169,11 +227,15 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
                     )
                   : const Icon(Icons.auto_awesome),
               label: Padding(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 8,
+                ),
                 child: Text(_processing ? 'Extracting...' : 'Extract fields'),
               ),
             ),
+            const SizedBox(height: 16),
+            SttConsole(stt: _stt),
           ],
         ),
       ),
